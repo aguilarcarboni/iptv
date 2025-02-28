@@ -28,7 +28,7 @@ struct AccountView: View {
                         TextField("Display Name", text: $displayName)
                             .font(.title2)
                             .multilineTextAlignment(.center)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .textFieldStyle(PlainTextFieldStyle())
                             .padding(.horizontal)
                         
                         Button("Save") {

@@ -73,7 +73,7 @@ struct ContentView: View {
                         }
                     }
                 }
-                .listStyle(SidebarListStyle())
+                .listStyle(PlainListStyle())
                 .navigationTitle("InternetProtocolTV")
             } detail: {
                 // Content area
