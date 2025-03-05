@@ -9,16 +9,13 @@ struct LiveTVView: View {
     @Query private var channels: [Channel]
     
     @State private var selectedChannel: Channel? = nil
-    @State private var selectedCategory: String? = "All Channels"
+    @State private var selectedCategory: String? = nil
     @State private var isFullScreen = false
     @State private var player: AVPlayer? = nil
     
     // Group channels by category
     private var channelsByCategory: [String: [Channel]] {
         var result: [String: [Channel]] = [:]
-        
-        // Add "All Channels" category
-        result["All Channels"] = channels
         
         // Group by categoryId
         for channel in channels {
@@ -34,14 +31,11 @@ struct LiveTVView: View {
     
     // Get sorted category names
     private var sortedCategories: [String] {
-        let categories = Array(channelsByCategory.keys)
-        return ["All Channels"] + categories.filter { $0 != "All Channels" }.sorted()
+        Array(channelsByCategory.keys).sorted()
     }
     
     // Helper function to get category name from ID
     private func getCategoryName(for categoryId: String) -> String? {
-        // In a real app, you would look up the category name from a categories database
-        // For now, we'll just return the category ID
         return categoryId.isEmpty ? "Uncategorized" : categoryId
     }
     
@@ -65,40 +59,62 @@ struct LiveTVView: View {
     }
     
     var body: some View {
-        NavigationSplitView(columnVisibility: .constant(.doubleColumn)) {
-            // Sidebar content
-            List(selection: $selectedCategory) {
-                Section("Categories") {
-                    ForEach(sortedCategories, id: \.self) { category in
-                        Text(category)
+        HStack(spacing: 0) {
+            // Left side: Categories or Channels
+            List {
+                if let selectedCategory = selectedCategory {
+                    // Show back button
+                    Button(action: {
+                        self.selectedCategory = nil
+                        self.selectedChannel = nil
+                        self.player = nil
+                    }) {
+                        Label("Categories", systemImage: "chevron.left")
                     }
-                }
-            }
-            .navigationTitle("Live TV")
-            .listStyle(.sidebar)
-        } content: {
-            // Channel list
-            List(selection: $selectedChannel) {
-                if let category = selectedCategory,
-                   let channelsInCategory = channelsByCategory[category] {
-                    ForEach(channelsInCategory) { channel in
-                        ChannelRow(channel: channel)
-                            .onTapGesture {
+                    
+                    // Show channels for selected category
+                    if let channelsInCategory = channelsByCategory[selectedCategory] {
+                        ForEach(channelsInCategory) { channel in
+                            Button(action: {
                                 selectedChannel = channel
                                 startStreaming(channel: channel)
+                            }) {
+                                ChannelRow(channel: channel)
                             }
+                        }
+                    }
+                } else {
+                    // Show categories
+                    ForEach(sortedCategories, id: \.self) { category in
+                        Button(action: {
+                            selectedCategory = category
+                        }) {
+                            HStack {
+                                Text(category)
+                                Spacer()
+                                if let count = channelsByCategory[category]?.count {
+                                    Text("\(count)")
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
                     }
                 }
             }
-            .navigationTitle(selectedCategory ?? "All Channels")
-            .listStyle(.plain)
-        } detail: {
-            // Video player area
+            .frame(width: 400)
+            
+            // Right side: Player
             ZStack {
-                Color.foreground
+                Color.black
                 
                 if let player = player {
                     VideoPlayer(player: player)
+                        .onAppear{
+                            player.play()
+                        }
+                        .onDisappear{
+                            player.pause()
+                        }
                 } else {
                     NoChannelSelectedView()
                 }
@@ -113,6 +129,7 @@ struct LiveTVView: View {
                 }
             }
         }
+        .navigationTitle(selectedCategory ?? "Live TV")
     }
 }
 

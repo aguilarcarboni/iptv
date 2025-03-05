@@ -3,7 +3,7 @@ import SwiftData
 import os
 
 struct ContentView: View {
-    @State private var selectedTab: NavigationItem = .home
+    @State private var selectedTab: NavigationItem? = .home
     @Environment(\.colorScheme) private var colorScheme
     
     @Environment(\.modelContext) private var modelContext
@@ -12,6 +12,7 @@ struct ContentView: View {
     
     @StateObject private var channelManager = ChannelManager()
     @State private var showLiveTV = false
+    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
     
     private func handleFetchChannels() {
         guard !credentials.isEmpty else {
@@ -53,37 +54,85 @@ struct ContentView: View {
         }
     }
     
+    @ViewBuilder
+    private var navigationContent: some View {
+        #if os(tvOS)
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            // Sidebar
+            List {
+                ForEach(NavigationItem.allCases) { item in
+                    NavigationLink(
+                        destination: navigationDestination(for: item),
+                        tag: item,
+                        selection: $selectedTab
+                    ) {
+                        Label(item.rawValue, systemImage: item.icon)
+                    }
+                }
+            }
+            .navigationTitle("Menu")
+        } detail: {
+            if let selectedTab = selectedTab {
+                navigationDestination(for: selectedTab)
+            } else {
+                navigationDestination(for: .home)
+            }
+        }
+        #else
+        TabView(selection: Binding(
+            get: { selectedTab ?? .home },
+            set: { selectedTab = $0 }
+        )) {
+            HomeView(
+                channels: channels,
+                isLoading: isCheckingAPIReachability,
+                onRefresh: handleFetchChannels
+            )
+            .tabItem {
+                Label(NavigationItem.home.rawValue,
+                      systemImage: NavigationItem.home.icon)
+            }
+            .tag(NavigationItem.home)
+            
+            AccountView()
+                .tabItem {
+                    Label(NavigationItem.account.rawValue,
+                          systemImage: NavigationItem.account.icon)
+                }
+                .tag(NavigationItem.account)
+            
+            LiveTVView()
+                .tabItem {
+                    Label(NavigationItem.live.rawValue,
+                          systemImage: NavigationItem.live.icon)
+                }
+                .tag(NavigationItem.live)
+        }
+        .tint(.accent)
+        #endif
+    }
+    
+    @ViewBuilder
+    private func navigationDestination(for tab: NavigationItem) -> some View {
+        switch tab {
+        case .home:
+            HomeView(
+                channels: channels,
+                isLoading: isCheckingAPIReachability,
+                onRefresh: handleFetchChannels
+            )
+        case .account:
+            AccountView()
+        case .live:
+            LiveTVView()
+        }
+    }
+    
     var body: some View {
         if credentials.isEmpty {
             SignInView()
         } else {
-            TabView(selection: $selectedTab) {
-                HomeView(
-                    channels: channels,
-                    isLoading: isCheckingAPIReachability,
-                    onRefresh: handleFetchChannels
-                )
-                    .tabItem {
-                        Label(NavigationItem.home.rawValue,
-                              systemImage: NavigationItem.home.icon)
-                    }
-                    .tag(NavigationItem.home)
-                
-                AccountView()
-                    .tabItem {
-                        Label(NavigationItem.account.rawValue,
-                              systemImage: NavigationItem.account.icon)
-                    }
-                    .tag(NavigationItem.account)
-                
-                LiveTVView()
-                    .tabItem {
-                        Label(NavigationItem.live.rawValue,
-                              systemImage: NavigationItem.live.icon)
-                    }
-                    .tag(NavigationItem.live)
-            }
-            .tint(.accent)
+            navigationContent
         }
     }
 }
