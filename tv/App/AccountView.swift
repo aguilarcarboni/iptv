@@ -43,15 +43,10 @@ struct AccountView: View {
                         Text(displayName)
                             .font(.title2)
                             .fontWeight(.bold)
-                        
-                        Button("Edit Profile") {
-                            isEditingProfile = true
-                        }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 20)
-                        .background(.muted)
-                        .buttonStyle(PlainButtonStyle())
-                        .cornerRadius(8)
+
+                        CustomButton(action: {
+                            // Sign out action
+                        }, label: "Edit Profile")
                     }
                 }
                 .padding()
@@ -97,16 +92,18 @@ struct AccountView: View {
                                     .foregroundColor(.gray)
                             }
                             
-                            Button("Edit Credentials") {
-                                // Edit credentials action
+                            HStack {
+
+                                CustomButton(action: {
+                                    // Sign out action
+                                }, label: "Edit Credentials")
+
+                                CustomButton(action: {
+                                    // Sign out action
+                                }, label: "Sign Out")
                             }
-                            .frame(maxWidth: 200)
-                            .padding(.vertical, 10)
-                            .background(.accent)
-                            .foregroundColor(.white)
-                            .buttonStyle(PlainButtonStyle())
-                            .cornerRadius(8)
-                            .padding(.top, 10)
+                            
+
                         }
                         .padding()
                         .background(
@@ -114,31 +111,14 @@ struct AccountView: View {
                                 .fill(Color.gray.opacity(0.05))
                         )
                         .padding(.horizontal)
+                        
                     } else {
-                        Button("Add Server Credentials") {
+                        CustomButton(action: {
                             // Add credentials action
-                        }
-                        .frame(maxWidth: 200)
-                        .padding(.vertical, 15)
-                        .background(.accent)
-                        .foregroundColor(.white)
-                        .cornerRadius(8)
-                        .buttonStyle(PlainButtonStyle())
-                        .padding(.horizontal)
+                        }, label: "Add Server Credentials")
+                    
                     }
                 }
-                
-                Button(action: {
-                    // Sign out action
-                }) {
-                    Text("Sign Out")
-                        .fontWeight(.bold)
-                        .frame(maxWidth: 200)
-                        .padding(.vertical, 15)
-                        .cornerRadius(8)
-                }
-                .padding(.horizontal)
-                .padding(.top, 20)
             }
             .padding(.vertical)
         }

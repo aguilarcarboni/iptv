@@ -3,8 +3,8 @@ import SwiftData
 import os
 
 struct ContentView: View {
+    
     @State private var selectedTab: NavigationItem? = .home
-    @Environment(\.colorScheme) private var colorScheme
     
     @Environment(\.modelContext) private var modelContext
     @Query private var credentials: [Credential]
@@ -56,7 +56,7 @@ struct ContentView: View {
     
     @ViewBuilder
     private var navigationContent: some View {
-        #if os(tvOS)
+        #if os(tvOS) || os(macOS)
         NavigationSplitView(columnVisibility: $columnVisibility) {
             // Sidebar
             List {
@@ -78,7 +78,7 @@ struct ContentView: View {
                 navigationDestination(for: .home)
             }
         }
-        #else
+        #elseif os(iOS)
         TabView(selection: Binding(
             get: { selectedTab ?? .home },
             set: { selectedTab = $0 }

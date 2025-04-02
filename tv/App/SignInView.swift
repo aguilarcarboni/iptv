@@ -15,102 +15,106 @@ struct SignInView: View {
     
     var body: some View {
         ZStack {
+            // Background pattern
+            DotPattern(
+                backgroundColor: Color("Background"),
+                dotColor: Color("Subtitle"),
+                opacity: 0.3,
+                spacing: 20
+            )
             
-            VStack {
-                Spacer()
-                
-                // Sign-in form
-                VStack(spacing: 24) {
-                    
-                    Text("Welcome back to your TV")
-                        .font(.largeTitle)
-                        .fontWeight(.semibold)
-                    
-                    // Server URL field
-                    HStack {
-                        Image(systemName: "server.rack")
-                            .foregroundColor(.foreground)
-                            .frame(width: 24)
+            ScrollView {
+                VStack {
+                    // Header area with additional top padding
+                    VStack(spacing: 20) {
+                        Text("TV App")
+                            .font(.system(size: 40, weight: .bold))
+                            .foregroundColor(Color("AccentColor"))
+                            .padding(.top, 100) // Increased top padding
                         
-                        TextField("Server URL", text: $serverUrl)
-                            .disableAutocorrection(true)
-                            .textFieldStyle(PlainTextFieldStyle())
+                        Text("Welcome back")
+                            .font(.title)
+                            .fontWeight(.semibold)
+                            .foregroundColor(Color("Foreground"))
                     }
-                    .padding()
-                    .background(.muted)
-                    .cornerRadius(12)
+                    .padding(.bottom, 40)
                     
-                    // Username field
-                    HStack {
-                        Image(systemName: "person")
-                            .foregroundColor(.foreground)
-                            .frame(width: 24)
+                    // Main form inside a card-like container
+                    VStack {
+                        Text("Sign In")
+                            .font(.title2)
+                            .fontWeight(.medium)
+                            .foregroundColor(Color("Foreground"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        TextField("Username", text: $username)
-                            .disableAutocorrection(true)
-                            .textFieldStyle(PlainTextFieldStyle())
-                    }
-                    .padding()
-                    .background(.muted)
-                    .cornerRadius(12)
-                    
-                    // Password field
-                    HStack {
-                        Image(systemName: "lock")
-                            .foregroundColor(.foreground)
-                            .frame(width: 24)
+                        Text("Enter your credentials to continue")
+                            .font(.subheadline)
+                            .foregroundColor(Color("Subtitle"))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.bottom, 20)
                         
-                        SecureField("Password", text: $password)
-                            .textFieldStyle(PlainTextFieldStyle())
-                    }
-                    .padding()
-                    .background(.muted)
-                    .cornerRadius(12)
-                    
-                    // Sign in button
-                    Button(action: {
-                        withAnimation {
-                            isLoading = true
+                        VStack(spacing: 20) {
+                            CustomInput(
+                                value: $serverUrl,
+                                label: "Server URL",
+                                iconName: "server.rack"
+                            )
                             
-                            // Add a small delay to show the loading state
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                saveCredentials()
-                                isLoading = false
-                            }
-                        }
-                    }) {
-                        ZStack {
-                            if isLoading {
-                                Text("Loading...")
+                            CustomInput(
+                                value: $username,
+                                label: "Username",
+                                iconName: "person"
+                            )
+                            
+                            // For password, create consistent styling with other inputs
+                            VStack(alignment: .leading) {
+                                Text("Password")
                                     .font(.headline)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .frame(maxWidth: 250)
-                            } else {
-                                Text("Sign In")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .frame(maxWidth: 250)
+                                    .fontWeight(.medium)
+                                    .padding(.bottom, 2)
+                                    .foregroundColor(Color("Foreground"))
+
+                                SecureField("", text: $password)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .foregroundColor(Color("Foreground"))
+                                    .background(Color("Muted"))
+                                    .cornerRadius(7)
+                                    .textFieldStyle(PlainTextFieldStyle())
                             }
+                            
+                            // Sign in button
+                            CustomButton(
+                                action: {
+                                    withAnimation {
+                                        isLoading = true
+                                        // Add a small delay to show the loading state
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                            saveCredentials()
+                                            isLoading = false
+                                        }
+                                    }
+                                },
+                                label: isLoading ? "Loading..." : "Sign In"
+                            )
                         }
                     }
-                    .background(.accent)
-                    .cornerRadius(12)
-                    .disabled(isLoading)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 22)
+                    .background(Color("Background"))
+                    .cornerRadius(10)
+                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
+                    .padding(.horizontal, 40)
+                    
+                    // Footer area with improved spacing
+                    Spacer(minLength: 60)
+                    Text("Version 1.0")
+                        .font(.caption)
+                        .foregroundColor(Color("Subtitle"))
+                        .padding(.bottom, 40) // Increased bottom padding
                 }
-                .padding(.horizontal, 30)
-                
-                Spacer()
-                
-                // Additional info / footer
-                Text("Version 1.0")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                    .padding(.bottom)
-                
+                .padding()
             }
-            .padding()
         }
         .alert("Sign In", isPresented: $showAlert) {
             Button("OK", role: .cancel) { }
