@@ -8,9 +8,40 @@ class ChannelManager: ObservableObject {
     @Published var error: String? = nil
     @Published var lastResponseSample: String? = nil
     @Published var lastResponseType: String? = nil
+    @Published var lastFetchTimestamp: Date? = nil
     
     // Create a logger
     private let logger = Logger(subsystem: "com.anywhere.app", category: "ChannelManager")
+    
+    // Check if channels need refreshing
+    func loadChannelsIfNeeded(credentials: Credential, modelContext: ModelContext) {
+        logger.info("Checking if channels need to be loaded")
+        
+        let descriptor = FetchDescriptor<Channel>()
+        do {
+            let existingChannels = try modelContext.fetch(descriptor)
+            
+            if existingChannels.isEmpty {
+                logger.info("No cached channels found, fetching from server")
+                fetchChannels(credentials: credentials, modelContext: modelContext)
+            } else {
+                // Check if channels were fetched recently (e.g., in the last 24 hours)
+                let shouldRefresh = lastFetchTimestamp == nil || 
+                                     Date().timeIntervalSince(lastFetchTimestamp!) > 86400
+                
+                if shouldRefresh {
+                    logger.info("Channels cache expired, refreshing from server")
+                    fetchChannels(credentials: credentials, modelContext: modelContext)
+                } else {
+                    logger.info("Using \(existingChannels.count) cached channels")
+                    self.channels = existingChannels
+                }
+            }
+        } catch {
+            logger.error("Error checking cached channels: \(error.localizedDescription)")
+            fetchChannels(credentials: credentials, modelContext: modelContext)
+        }
+    }
     
     func fetchChannels(credentials: Credential, modelContext: ModelContext) {
         logger.info("Starting to fetch channels for user: \(credentials.username)")
@@ -248,31 +279,41 @@ class ChannelManager: ObservableObject {
     }
     
     private func processChannels(_ channelsData: [ChannelResponse], modelContext: ModelContext) {
-        for (index, channelData) in channelsData.enumerated() {
-            let channel = Channel(
-                num: channelData.num,
-                name: channelData.name,
-                streamType: channelData.stream_type,
-                streamId: channelData.stream_id,
-                streamIcon: channelData.stream_icon,
-                epgChannelId: channelData.epg_channel_id,
-                added: channelData.added,
-                customSid: channelData.custom_sid,
-                tvArchive: channelData.tv_archive,
-                directSource: channelData.direct_source,
-                tvArchiveDuration: channelData.tv_archive_duration,
-                categoryId: channelData.category_id,
-                categoryIds: channelData.category_ids,
-                thumbnail: channelData.thumbnail
-            )
-            
-            modelContext.insert(channel)
-            
-            // Log every 100 channels to avoid excessive logging
-            if index % 100 == 0 || index == channelsData.count - 1 {
-                self.logger.info("Inserted channel \(index+1)/\(channelsData.count): \(channel.name)")
+        // Use transaction for batch operation with proper error handling
+        do {
+            try modelContext.transaction {
+                for (index, channelData) in channelsData.enumerated() {
+                    let channel = Channel(
+                        num: channelData.num,
+                        name: channelData.name,
+                        streamType: channelData.stream_type,
+                        streamId: channelData.stream_id,
+                        streamIcon: channelData.stream_icon,
+                        epgChannelId: channelData.epg_channel_id,
+                        added: channelData.added,
+                        customSid: channelData.custom_sid,
+                        tvArchive: channelData.tv_archive,
+                        directSource: channelData.direct_source,
+                        tvArchiveDuration: channelData.tv_archive_duration,
+                        categoryId: channelData.category_id,
+                        categoryIds: channelData.category_ids,
+                        thumbnail: channelData.thumbnail
+                    )
+                    
+                    modelContext.insert(channel)
+                    
+                    // Log every 500 channels instead of every 100 to reduce logging overhead
+                    if index % 500 == 0 || index == channelsData.count - 1 {
+                        self.logger.info("Inserted channel \(index+1)/\(channelsData.count): \(channel.name)")
+                    }
+                }
             }
+        } catch {
+            self.logger.error("Failed to process channels in transaction: \(error.localizedDescription)")
         }
+        
+        // Update last fetch timestamp
+        self.lastFetchTimestamp = Date()
         
         // Query to update the published channels
         do {

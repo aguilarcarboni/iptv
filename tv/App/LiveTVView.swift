@@ -6,29 +6,21 @@ import os
 struct LiveTVView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var credentials: [Credential]
-    @Query private var channels: [Channel]
+    
+    // Use a more efficient approach for large data sets
+    // Instead of querying all channels directly in the view
+    @State private var loadedChannels: [Channel] = []
+    @State private var loadedChannelsByCategory: [String: [Channel]] = [:]
+    @State private var sortedCategories: [String] = []
     
     @State private var selectedChannel: Channel? = nil
     @State private var selectedCategory: String? = nil
     @State private var isFullScreen = false
     @State private var player: AVPlayer? = nil
+    @State private var isLoading = true
     
-    // Group channels by category
-    private var channelsByCategory: [String: [Channel]] {
-        var result: [String: [Channel]] = [:]
-        for channel in channels {
-            let categoryName = getCategoryName(for: channel.categoryId) ?? "Uncategorized"
-            if result[categoryName] == nil {
-                result[categoryName] = []
-            }
-            result[categoryName]?.append(channel)
-        }
-        return result
-    }
-    
-    private var sortedCategories: [String] {
-        Array(channelsByCategory.keys).sorted()
-    }
+    // Create a logger
+    private let logger = Logger(subsystem: "com.anywhere.app", category: "LiveTVView")
     
     private func getCategoryName(for categoryId: String) -> String? {
         return categoryId.isEmpty ? "Uncategorized" : categoryId
@@ -45,78 +37,136 @@ struct LiveTVView: View {
         }
     }
     
+    // Function to efficiently load and categorize channels
+    private func loadAndCategorizeChannels() {
+        isLoading = true
+        
+        // Load channels in the background to avoid UI freezes
+        DispatchQueue.global(qos: .userInitiated).async {
+            let descriptor = FetchDescriptor<Channel>()
+            
+            do {
+                // Get the channels
+                let channels = try modelContext.fetch(descriptor)
+                
+                // Pre-process channels by category
+                var channelsByCategory: [String: [Channel]] = [:]
+                
+                for channel in channels {
+                    let categoryName = getCategoryName(for: channel.categoryId) ?? "Uncategorized"
+                    if channelsByCategory[categoryName] == nil {
+                        channelsByCategory[categoryName] = []
+                    }
+                    channelsByCategory[categoryName]?.append(channel)
+                }
+                
+                // Sort categories
+                let categories = Array(channelsByCategory.keys).sorted()
+                
+                // Update UI on main thread
+                DispatchQueue.main.async {
+                    loadedChannels = channels
+                    loadedChannelsByCategory = channelsByCategory
+                    sortedCategories = categories
+                    isLoading = false
+                    logger.info("Loaded and categorized \(channels.count) channels into \(categories.count) categories")
+                }
+            } catch {
+                logger.error("Failed to load channels: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    isLoading = false
+                }
+            }
+        }
+    }
+    
     var body: some View {
         HStack(spacing: 0) {
             // Sidebar
             ScrollView {
-                VStack(spacing: 16) {
-                    if let selectedCategory = selectedCategory {
-                        
-                        CustomButton(action: {
-                            self.selectedCategory = nil
-                            self.selectedChannel = nil
-                            self.player = nil
-                        }, label: "← Back to Categories")
-                        .padding(.horizontal)
-                        
-                        // Channels in category
-                        if let channelsInCategory = channelsByCategory[selectedCategory] {
-                            ForEach(channelsInCategory) { channel in
-                                
-                                VStack(alignment: .leading) {
-                                    Text(channel.name)
-                                    .font(.headline)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .onTapGesture {
-                                        selectedChannel = channel
-                                        startStreaming(channel: channel)
-                                    }
-
-                                    Text("Channel \(channel.num)")
-                                    .font(.caption)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .padding(.horizontal)
-                                .background(selectedChannel?.id == channel.id ? Color("AccentColor").opacity(0.1) : Color.clear)
-                                .cornerRadius(8)
-                                .padding(.horizontal)
-                            }
-                        }
-                    } else {
-                        // Categories
-                        ForEach(sortedCategories, id: \.self) { category in
-                            Button {
-                                selectedCategory = category
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(category)
-                                            .font(.callout)
-                                            .foregroundColor(Color("Foreground"))
-                                        Text("\(channelsByCategory[category]?.count ?? 0) channels")
-                                            .font(.caption)
-                                            .foregroundColor(Color("Subtitle"))
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption)
-                                        .foregroundColor(Color("Subtitle"))
-                                }
-                                .padding(.vertical, 8)
-                                .padding(.horizontal)
-                            }
-                            .buttonStyle(.plain)
+                if isLoading {
+                    VStack {
+                        ProgressView()
+                            .padding()
+                        Text("Loading channels...")
+                            .font(.caption)
+                    }
+                    .frame(width: 250)
+                    .padding(.vertical, 40)
+                } else {
+                    VStack(spacing: 16) {
+                        if let selectedCategory = selectedCategory {
                             
-                            if category != sortedCategories.last {
-                                Divider()
-                                    .padding(.horizontal)
+                            CustomButton(action: {
+                                self.selectedCategory = nil
+                                self.selectedChannel = nil
+                                self.player = nil
+                            }, label: "← Back to Categories")
+                            .padding(.horizontal)
+                            
+                            // Channels in category
+                            if let channelsInCategory = loadedChannelsByCategory[selectedCategory] {
+                                LazyVStack {
+                                    ForEach(channelsInCategory) { channel in
+                                        
+                                        VStack(alignment: .leading) {
+                                            Text(channel.name)
+                                            .font(.headline)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .onTapGesture {
+                                                selectedChannel = channel
+                                                startStreaming(channel: channel)
+                                            }
+
+                                            Text("Channel \(channel.num)")
+                                            .font(.caption)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal)
+                                        .background(selectedChannel?.id == channel.id ? Color("AccentColor").opacity(0.1) : Color.clear)
+                                        .cornerRadius(8)
+                                        .padding(.horizontal)
+                                    }
+                                }
+                            }
+                        } else {
+                            // Categories
+                            LazyVStack {
+                                ForEach(sortedCategories, id: \.self) { category in
+                                    Button {
+                                        selectedCategory = category
+                                    } label: {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(category)
+                                                    .font(.callout)
+                                                    .foregroundColor(Color("Foreground"))
+                                                Text("\(loadedChannelsByCategory[category]?.count ?? 0) channels")
+                                                    .font(.caption)
+                                                    .foregroundColor(Color("Subtitle"))
+                                            }
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption)
+                                                .foregroundColor(Color("Subtitle"))
+                                        }
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal)
+                                    }
+                                    .buttonStyle(.plain)
+                                    
+                                    if category != sortedCategories.last {
+                                        Divider()
+                                            .padding(.horizontal)
+                                    }
+                                }
                             }
                         }
                     }
+                    .padding(.vertical)
                 }
-                .padding(.vertical)
             }
             .frame(width: 250)
             .background(Color("Background"))
@@ -138,6 +188,9 @@ struct LiveTVView: View {
             }
         }
         .navigationTitle(selectedCategory ?? "Live TV")
+        .onAppear {
+            loadAndCategorizeChannels()
+        }
     }
 }
 
@@ -148,11 +201,13 @@ struct NoChannelSelectedView: View {
             Image(systemName: "tv")
                 .font(.system(size: 80))
                 .foregroundColor(Color("Subtitle"))
-            
-            CustomCard(
-                title: "No Channel Selected",
-                description: "Choose a channel from the sidebar to start watching"
-            )
+            Text("No Channel Selected")
+                .font(.title)
+                .foregroundColor(Color("Subtitle"))
+
+            Text("Select a channel from the sidebar to start watching")
+                .font(.subheadline)
+                .foregroundColor(Color("Subtitle"))
             .frame(maxWidth: 400)
         }
     }

@@ -21,6 +21,14 @@ struct ContentView: View {
         channelManager.fetchChannels(credentials: credentials[0], modelContext: modelContext)
     }
     
+    // New method to load channels only if needed
+    private func loadChannelsIfNeeded() {
+        guard !credentials.isEmpty else {
+            return
+        }
+        channelManager.loadChannelsIfNeeded(credentials: credentials[0], modelContext: modelContext)
+    }
+    
     private func checkAPIReachability() {
         isCheckingAPIReachability = true
         
@@ -40,16 +48,16 @@ struct ContentView: View {
     
     enum NavigationItem: String, CaseIterable, Identifiable {
         case home = "Home"
-        case account = "Account"
         case live = "Live TV"
+        case account = "Account"
         
         var id: String { self.rawValue }
         
         var icon: String {
             switch self {
             case .home: return "house.fill"
-            case .account: return "person.fill"
             case .live: return "tv.fill"
+            case .account: return "person.fill"
             }
         }
     }
@@ -133,6 +141,10 @@ struct ContentView: View {
             SignInView()
         } else {
             navigationContent
+                .onAppear {
+                    // Load channels on app launch using the optimized method
+                    loadChannelsIfNeeded()
+                }
         }
     }
 }
